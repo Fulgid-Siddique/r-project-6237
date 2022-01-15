@@ -1,0 +1,468 @@
+---
+title: "My Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows # alternative is 'columns'
+    vertical_layout: scroll # adding scrolling feature alternative is 'fill'
+runtime: shiny
+---
+
+
+```{r setup, include=FALSE}
+
+install.packages("tidyverse")
+install.packages("dplyr")
+install.packages("plotly")
+install.packages("gganimate")
+install.packages("knitr")
+install.packages("gridExtra")
+install.packages("data.table")
+install.packages("shiny")
+install.packages("rsconnect")
+install.packages("rmarkdown")
+install.packages("bookdown")
+
+```
+```{r}
+# Loading Libraries
+
+library(tidyr)
+library(tidyverse)
+library(tidyquant)
+library(shiny)
+library(shinydashboard)
+library(flexdashboard)
+library(qcc)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(gganimate)
+library(purrr)
+library(data.table)
+library(knitr)
+library(gridExtra)
+library(png)
+library(gifski)
+library(leaflet)
+
+```
+
+Project Introduction 
+=======================================================================
+
+### Presented to Sir Sajid Bashir by Muhammad Siddique Reg. 6237
+
+### ABOUT THE PROJECT (ANALYSING OLYMPIC GAME DATA):
+
+
+In this project a data set of Olympic Games from 1896 to 2016 will be used.
+Attributes Information. This data set contains all the detail of athletes participated, country & city event took place, event year & season etc.
+
+
+Column {data-width=650} 
+-----------------------------------------------------------------------
+###	Purpose of the project
+
+```{r}
+tags$ol("This set of data will be used to have useful insights and visualizations.")
+tags$ol("The Data will be mined and analyzed to answer different questions, like:")
+tags$ol("Which country won more medals?")   	
+tags$ol("Which player won most medals?")
+tags$ol("Comparing performance year wise.")
+tags$ol("Visualizing top 10 countries.")
+tags$ol("Which city hosted the event most times?")
+tags$ol("Medal tally of all / few countries across the years.")
+tags$ol("And so many.")
+
+```
+
+
+Data Exploration
+======================================================================
+
+Column {data-width=650} 
+-----------------------------------------------------------------------
+### TABULAR DATA
+```{r}
+athletes = read.csv("athlete_events.csv", stringsAsFactors = F)
+col_types = cols(
+  ID = col_character(),
+  Name = col_character(),
+  Sex = col_factor(levels = c("M","F")),
+  Age =  col_integer(),
+  Height = col_double(),
+  Weight = col_double(),
+  Team = col_character(),
+  NOC = col_character(),
+  Games = col_character(),
+  Year = col_number(),
+  Season = col_factor(levels = c("Summer","Winter")),
+  City = col_character(),
+  Sport = col_character(),
+  Event = col_character(),
+  Medal = col_factor(levels = c("Gold","Silver","Bronze"))
+)
+
+# LOAD DATA MATCHING NOCs (NATIONAL OLYMPIC COMMITTEE) WITH COUNTRIES
+
+NOCs <- read_csv("noc_regions.csv", col_types = cols(
+  NOC = col_character(),
+  region = col_character()
+))
+
+head(athletes)
+
+```
+Column {data-width=650} 
+-----------------------------------------------------------------------
+### Clearing Data by removing NAs from "Medal" Column
+```{r}
+cleared_data = athletes %>%
+  filter(Medal != "<NA>") ## retain all data which is not NA
+cleared_data$Year =as.factor(cleared_data$Year)
+head(cleared_data)
+
+```
+### Medals won by Pakistan
+```{r}
+medalsbyPak = subset(cleared_data, Team == "Pakistan")
+head(medalsbyPak)
+```
+### Medals won by each country
+```{r}
+countrywiseMEDALS = cleared_data %>% group_by(Team) %>% 
+  summarise(Medals = length(Medal))%>% 
+  arrange(desc(Medals))
+head(countrywiseMEDALS)
+```
+### Medals won by each country
+```{r}
+peryearMedals = cleared_data %>% 
+  group_by(Team, Year) %>%
+  summarise(Total = n())
+head(peryearMedals)
+
+```
+Column {data-width=650} 
+-----------------------------------------------------------------------
+### Medals by selected countries (USA", "Russia", "China", "Germany", "France") per year
+```{r}
+medalsbyselectedCOUNTRIES = peryearMedals %>% filter(Team %in% c("USA", "Russia", "China", "Germany", "France"))
+head(medalsbyselectedCOUNTRIES)
+```
+### Top-30 Seasonnwise (Summer - Winter) Medals by all countries
+```{r}
+Seasonnwise = cleared_data %>% group_by(Team, Season) %>%
+  summarise(Medals_by_season = length(Medal)) %>%
+  arrange (desc(Medals_by_season))
+top_n(Seasonnwise,30)
+```
+### Men Vs Women Performance in the olympics
+```{r}
+performance = cleared_data %>% group_by(Year, Season, Sex) %>%
+  dplyr::summarise(Count=n()) %>%
+  arrange(Year)
+top_n(performance, 10)
+```
+Column {data-width=650} 
+-----------------------------------------------------------------------
+### Men Vs Women Performance in the olympics in Summer 
+```{r}
+performance_summer = cleared_data %>% group_by(Year, Season, Sex) %>%
+  filter(Season == 'Summer') %>%
+  dplyr::summarise(Count=n()) %>%
+  arrange(Year)
+head(performance_summer)
+```
+### Men Vs Women Performance of top 10 in the olympics 
+```{r}
+performance_top = cleared_data %>% group_by(Year, Season, Sex) %>%
+  top_n(10, Team) %>%
+  dplyr::summarise(Count=n()) %>%
+  arrange(Year)
+head(performance_top)
+```
+### Most Popular sports by Gender 
+```{r}
+popularsportsbygender = cleared_data %>% group_by(Sport, Sex) %>%
+  filter(Season =='Summer') %>%
+  summarize(Count=n()) %>%
+  group_by(Sex) %>% top_n(10, Sport)
+head(popularsportsbygender)
+```
+### Medals won by women in 2016
+```{r}
+f_2016 = cleared_data %>% filter( Year==2016, Sex=="F") %>%
+  group_by(NOC, Medal) %>%
+  summarize(Count=length(Medal))
+head(f_2016)
+```
+### Medals won by Men in 2016
+```{r}
+m_2016 = cleared_data %>% filter( Year==2016, Sex=="M") %>%
+  group_by(NOC, Medal) %>%
+  summarize(Count=length(Medal))
+head(m_2016)
+```
+Column {data-width=100} 
+-----------------------------------------------------------------------
+### Number of athletes participated
+```{r}
+athletesnumbers <- cleared_data %>%
+  group_by(Year, Sex) %>%
+  summarize(count=n())
+head(athletesnumbers)
+```
+### Medals won by women in 2016
+```{r}
+m_2016 = cleared_data %>% filter( Year==2016, Sex=="F") %>%
+  group_by(NOC, Medal) %>%
+  summarize(Count=length(Medal))
+head(m_2016)
+```
+### PARTICIPATION OF MALE AND FEMALE ATHLETES OVER TIME, WITHOUT ART COPETITIONS
+```{r}
+dataOlympics <- athletes %>% 
+  filter(Sport != "Art Competitions")
+# AFTER 1992, CHANGE THE YEAR OF THE WINTER GAMES TO COINCIDE WITH THE NEXT SUMMER GAMES. THE TERM "YEAR" CURRENTLY REFERS TO THE OLYMPICS TOOK PLACE
+original <- c(1994,1998,2002,2006,2010,2014)
+new <- c(1996,2000,2004,2008,2012,2016)
+for (i in 1:length(original)) {
+  dataOlympics$Year <- gsub(original[i], new[i], dataOlympics$Year)
+}
+dataOlympics$Year <- as.integer(dataOlympics$Year)
+# COUNT NUMBER OF ATHLETES BY SEX AND YEAR
+countsSex <- dataOlympics %>% 
+  group_by(Year, Sex) %>%
+  summarize(Athletes = length(unique(ID)))
+countsSex$Year <- as.integer(countsSex$Year)
+head(countsSex)
+```
+
+Basic Charts {data-orientation=columns}
+======================================================================
+
+Column {data-height=650}
+-----------------------------------------------------------------------
+
+### Top 10 Medals wining countries
+
+```{r}
+
+countrywiseMEDALS %>% top_n(10) %>% ggplot(aes(x =Medals, y= Team))+
+  geom_bar(stat = 'identity', colour="white", fill="red")+theme_dark()
+
+```
+
+### Most Popular sports by Gender
+
+```{r}
+ggplot(popularsportsbygender, aes(x=Sport, y=Count, group=Sex))+
+  geom_col(aes(fill=Sex))+
+  theme(axis.text.x = element_text(angle = 90, hjust =1))
+```
+
+### Genderwise Athletes participated  
+
+```{r}
+ 
+athletesnumbers %>% ggplot(aes(x=Year, y=count, fill=Sex))+
+  geom_col()+
+  coord_flip()+
+  ggtitle("Genderwise Athletes participated") +
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.y = element_text(size = 6))
+```
+
+Column {data-height=650}
+-----------------------------------------------------------------------
+### Seasonnwise (Summer - Winter) Medals for China, USA, Russia, France & Germany
+
+```{r}
+
+Seasonnwise_g5 = Seasonnwise %>% filter(Team %in% c("China", "Russia","USA","France","Germany"))
+Seasonnwise_g5 %>% ggplot(aes(x = Team, y = Medals_by_season, fill = Season)) +
+  geom_bar(stat = "identity", position = position_dodge())+theme_light()
+```
+
+### Ploting medals data by selected countries
+
+```{r}
+
+medalsbyselectedCOUNTRIES %>% ggplot(aes(x = Year, y = Total, group = Team))+
+  geom_line(aes(color = Team))+geom_point(aes(color = Team)) + 
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+### Plotting Men Vs Women Performance in the olympics
+
+```{r}
+
+performance %>% ggplot(aes(x=Year, y=Count, group=Sex)) +
+  geom_line(aes(color=Sex))+
+  geom_point(aes(color=Sex))+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+Column {data-height=350}
+-----------------------------------------------------------------------
+
+### Medals won by men in 2016  
+
+```{r}
+
+ggplot(m_2016, aes(x=NOC, y=Count, fill=Medal))+
+  geom_col()+
+  coord_flip()+
+  scale_fill_manual(values=c("Gold1", "Gray70", "Gold4")) + 
+  ggtitle("Medal Counts for women at the 2016 Olympics") +
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.y = element_text(size = 3))
+
+```
+
+### Medals won by women in 2016  
+
+```{r}
+ 
+ggplot(f_2016, aes(x=NOC, y=Count, fill=Medal))+
+  geom_col()+
+  coord_flip()+
+  scale_fill_manual(values=c("Gold1", "Gray70", "Gold4")) + 
+  ggtitle("Medal Counts for women at the 2016 Olympics") +
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.y = element_text(size = 3))
+```
+
+More Charts {data-orientation=columns}
+=======================================================================
+
+Column {data-height=650}
+-----------------------------------------------------------------------
+### Has the number of athletes, countries, and events increased or decreased throughout time?
+
+```{r}
+numbers <- cleared_data %>%
+  group_by(Year, Season) %>%
+  summarize(Nations = length(unique(NOC)), Athletes = length(unique(ID)), Events = length(unique(Event))
+  )
+
+plotNations <- ggplot(numbers, aes(x=Year, y=Nations, group=Season, color=Season)) +
+  geom_point() +
+  geom_line() +
+  labs(x = " ", y = "Nations", 
+       title="Nations, Athletes and Events", 
+       subtitle = "Olympic Games from 1896 to 2016")+
+  theme(axis.text.x = element_text(size = 5))
+plotAthletes <- ggplot(numbers, aes(x=Year, y=Athletes, group=Season, color=Season)) +
+  geom_point() +
+  geom_line() +
+  xlab("")+
+  theme(axis.text.x = element_text(size = 5))
+plotEvents <- ggplot(numbers, aes(x=Year, y=Events, group=Season, color=Season)) +
+  geom_point() +
+  geom_line() +
+  theme(axis.text.x = element_text(size = 5)) 
+grid.arrange(plotNations, plotAthletes, plotEvents, nrow=3)
+medalCounts <- cleared_data %>% filter(!is.na(Medal))%>% 
+  group_by(NOC, Medal, Event, Games) %>%
+  summarize(isMedal=1)
+medalCounts <-  medalCounts %>% 
+  group_by(NOC, Medal) %>%
+  summarize(Count= sum(isMedal))
+medalCounts <- left_join(medalCounts, NOCs, by= "NOC" )
+medalCounts <- medalCounts %>% 
+  mutate (Team = region)
+medalCounts <- medalCounts %>% select( Medal, Team, Count)
+
+```
+
+### Top 10 - Nations with the most medals won in history
+```{r}
+
+levelsTeam <- medalCounts %>%
+  group_by(Team) %>%
+  summarize(Total=sum(Count)) %>%
+  arrange(desc(Total)) %>%
+  select(Team) %>%
+  slice(10:1)
+medalCounts$Team <- factor(medalCounts$Team, levels=levelsTeam$Team)
+medalCounts <- medalCounts %>% filter(Team != "NA")
+# PLOT MEDAL COUNTS
+ggplot(medalCounts, aes(x=Team, y=Count, fill=Medal)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_manual(values=c("gold3","gray64","sienna")) +
+  labs(x = "Nations", y = "Count", 
+       title="Top 10 - Nations with the most medals won in history", 
+       subtitle = "Olympic Games from 1896 to 2016")
+```
+### show the change of sport event
+```{r}
+# show the change of sport event
+cleared_data<-cleared_data %>%
+  group_by(Year,Season) %>% 
+  summarise(sports=n_distinct(Sport),Sport_events=n_distinct(Event))%>%
+  mutate(Sport=Season, Event=Season)
+  
+cleared_data %>% ggplot(aes(x=Year,y=Sport_events)) + 
+  geom_line(aes(color=Event)) +
+  geom_point(aes(color=Event)) +
+  geom_bar(aes(x=Year, y=sports*1.5, fill=Sport),stat = "identity") +
+  scale_fill_manual(values=c("red","blue")) +
+  scale_colour_manual(values = c("red","blue")) +
+  facet_grid(Sport~., scale="free_y") +
+  labs(x="Year of Olympic Games")
+
+```
+
+
+Animated Charts {data-orientation=columns}
+=======================================================================
+
+Column {data-height=300}
+-----------------------------------------------------------------------
+
+### Animated graph showing
+
+```{r}
+ 
+medalCounts <- cleared_data %>% filter(!is.na(Medal))%>% 
+  group_by(NOC, Medal, Event, Games, Year) %>%
+  summarize(isMedal=1)
+medalCounts <-  medalCounts %>% 
+  group_by(NOC, Medal, Year) %>%
+  summarize(Count= sum(isMedal))
+medalCounts <- left_join(medalCounts, NOCs, by= "NOC" )
+medalCounts <- medalCounts %>% 
+  mutate (Team = region)
+medalCounts <- medalCounts %>% select( Medal, Team, Count, Year)
+
+# ORDERING TEAM BY TOTAL MEDAL COUNT
+levelsTeam <- medalCounts %>%
+  group_by(Team) %>%
+  summarize(Total=sum(Count)) %>%
+  arrange(desc(Total)) %>%
+  select(Team) %>%
+  slice(10:1)
+medalCounts$Team <- factor(medalCounts$Team, levels=levelsTeam$Team)
+medalCounts <- medalCounts %>% filter(Team != "NA")
+
+# ANIMATED PLOT MEDAL COUNT
+plotMedalsAnim<- ggplot(medalCounts, aes(x=Team, y=Count, fill=Medal)) +
+  labs(x = "Nations", y = "Count", 
+       title='Top 10 - Comparison over time, nations with the most medals', 
+       subtitle = 'Olympic Games from 1896 to 2016 - Year: {closest_state}')  +
+  transition_states(Year)+
+  geom_col() +
+  coord_flip() +
+  scale_fill_manual(values=c("gold3","gray64","sienna"))
+animate(plotMedalsAnim,fps=2)
+```
+
+
+
+
